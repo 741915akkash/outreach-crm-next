@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { WorkspaceRole } from '@/generated/prisma/enums';
+import type { WorkspaceRole } from '@/generated/prisma/enums';
 import { requireWorkspace } from './require-workspace';
 
 export class ForbiddenError extends Error {
@@ -10,8 +10,11 @@ export class ForbiddenError extends Error {
   }
 }
 
-export async function requireWorkspaceRole(allowedRoles: WorkspaceRole[]) {
-  const context = await requireWorkspace();
+export async function requireWorkspaceRole(
+  workspaceId: string,
+  allowedRoles: WorkspaceRole[],
+) {
+  const context = await requireWorkspace(workspaceId);
 
   if (!allowedRoles.includes(context.membership.role)) {
     throw new ForbiddenError();

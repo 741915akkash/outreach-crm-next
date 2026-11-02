@@ -1,14 +1,20 @@
-import "server-only"
+import 'server-only';
 
-import {prisma} from "@server/db/client"
+import { prisma } from '@server/db/client';
 
-export async function getWorkspaceMembership(userId: string){
-  return prisma.membership.findFirst({
+export async function getWorkspaceMembership(
+  userId: string,
+  workspaceId: string,
+) {
+  return prisma.membership.findUnique({
     where: {
-      userId
+      workspaceId_userId: {
+        userId,
+        workspaceId,
+      },
     },
     include: {
-      workspace: true
-    }
-  })
+      workspace: true,
+    },
+  });
 }

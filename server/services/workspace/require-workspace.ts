@@ -12,19 +12,19 @@ export class UnauthenticatedError extends Error {
 
 export class WorkspaceMembershipRequiredError extends Error {
   constructor() {
-    super('Workspace membership required');
+    super('You do not have access to this workspace.');
     this.name = 'WorkspaceMembershipRequiredError';
   }
 }
 
-export async function requireWorkspace() {
+export async function requireWorkspace(workspaceId: string) {
   const session = await getSession();
 
   if (!session) {
     throw new UnauthenticatedError();
   }
 
-  const membership = await getWorkspaceMembership(session.user.id);
+  const membership = await getWorkspaceMembership(session.user.id, workspaceId);
 
   if (!membership) {
     throw new WorkspaceMembershipRequiredError();
