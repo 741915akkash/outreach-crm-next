@@ -12,23 +12,23 @@ datasource db {
   provider = "postgresql"
 }
 
-
 // Better Auth models
 
 model User {
-  id            String    @id
+  id            String   @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean  @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   sessions      Session[]
   accounts      Account[]
   memberships   Membership[]
-  createdTasks  Task[] @relation("TaskCreator")
-  assignedTasks Task[] @relation("TaskAssignee")
+  invitations   Invitation[]
+  createdTasks  Task[]       @relation("TaskCreator")
+  assignedTasks Task[]       @relation("TaskAssignee")
 
   @@unique([email])
   @@map("user")
@@ -93,10 +93,10 @@ enum WorkspaceRole {
 }
 
 model Workspace {
-  id          String   @id @default(cuid())
-  name        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   memberships Membership[]
   leads       Lead[]
@@ -107,6 +107,7 @@ model Workspace {
   companies   Company[]
   deals       Deal[]
   tasks       Task[]
+  invitations Invitation[]
 
   @@map("workspaces")
 }
@@ -127,6 +128,26 @@ model Membership {
   @@map("workspace_memberships")
 }
 
+model Invitation {
+  id          String        @id @default(cuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole
+  tokenHash   String        @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation(fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, email])
+  @@index([invitedById])
+  @@map("invitations")
+}
+
 // CRM tables
 
 model Lead {
@@ -142,24 +163,22 @@ model Lead {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  pipeline Pipeline? @relation(fields: [pipelineId], references: [id], onDelete: SetNull )
-  stage     PipelineStage? @relation(fields: [pipelineId, stageId], references: [pipelineId, id], onDelete: SetNull)
-  source Source? @relation(fields: [sourceId], references: [id], onDelete: Restrict)
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pipeline   Pipeline?      @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  stage      PipelineStage? @relation(fields: [pipelineId, stageId], references: [pipelineId, id], onDelete: SetNull)
+  source     Source?        @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   activities LeadActivity[]
   deals      DealLead[]
   tasks      Task[]
 
-  @@index([workspaceId])
   @@unique([workspaceId, email])
+  @@index([workspaceId])
   @@index([phone])
-  @@map("leads")
   @@index([sourceId])
   @@index([companyId])
+  @@map("leads")
 }
-
 
 model Pipeline {
   id          Int      @id @default(autoincrement())
@@ -187,8 +206,8 @@ model PipelineStage {
   createdAt  DateTime @default(now())
 
   pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
-  leads      Lead[]
-  deals      Deal[]
+  leads    Lead[]
+  deals    Deal[]
 
   @@unique([pipelineId, id])
   @@unique([pipelineId, name])
@@ -243,8 +262,8 @@ model LeadActivity {
   sequenceStepId Int?
   createdAt      DateTime          @default(now())
 
-  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead         Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   sequence     Sequence?     @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
   sequenceStep SequenceStep? @relation(fields: [sequenceStepId], references: [id], onDelete: SetNull)
 
@@ -272,8 +291,8 @@ model Sequence {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  steps     SequenceStep[]
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  steps      SequenceStep[]
   activities LeadActivity[]
 
   @@unique([workspaceId, name])
@@ -282,16 +301,16 @@ model Sequence {
 }
 
 model SequenceStep {
-  id          Int             @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   sequenceId  Int
   name        String
   description String?
   type        SequenceStepType
   position    Int
-  delayDays   Int             @default(0)
-  createdAt   DateTime        @default(now())
+  delayDays   Int              @default(0)
+  createdAt   DateTime         @default(now())
 
-  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  sequence   Sequence       @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
   activities LeadActivity[]
 
   @@unique([sequenceId, name])
@@ -323,22 +342,22 @@ model Company {
 }
 
 model Deal {
-  id                Int      @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
   workspaceId       String
   name              String
   companyId         Int?
   pipelineId        Int
   stageId           Int
-  value             Decimal? @db.Decimal(12, 2)
+  value             Decimal?  @db.Decimal(12, 2)
   currency          String?
   expectedCloseDate DateTime?
   description       String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  company   Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  pipeline  Pipeline  @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company   Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  pipeline  Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
   stage     PipelineStage @relation(fields: [pipelineId, stageId], references: [pipelineId, id], onDelete: Restrict)
   leads     DealLead[]
   tasks     Task[]
@@ -379,11 +398,11 @@ enum TaskPriority {
 }
 
 model Task {
-  id          Int         @id @default(autoincrement())
+  id          Int          @id @default(autoincrement())
   workspaceId String
   title       String
   description String?
-  status      TaskStatus  @default(TODO)
+  status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(P2)
   dueDate     DateTime?
   completedAt DateTime?
@@ -397,9 +416,9 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  assignedTo User     @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
-  createdBy  User     @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedTo User      @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
+  createdBy  User      @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
   deal Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
@@ -411,4 +430,3 @@ model Task {
   @@index([dealId])
   @@map("tasks")
 }
-
