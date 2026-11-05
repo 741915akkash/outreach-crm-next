@@ -47,15 +47,15 @@ export function AppShell({ children, workspaceId }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="min-h-screen lg:pl-[250px]">
+      <div className="min-h-screen sm:pl-[250px]">
         {/* Desktop sidebar */}
-        <div className="fixed inset-0 left-0 z-40 hidden lg:block">
+        <div className="fixed inset-y-0 left-0 z-40 hidden w-[250px] sm:block">
           <AppSidebar workspaceId={workspaceId} />
         </div>
 
         {/* Mobile sidebar drawer */}
         {mobileOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="fixed inset-0 z-50 sm:hidden">
             {/* Backdrop */}
             <button
               type="button"
@@ -66,24 +66,17 @@ export function AppShell({ children, workspaceId }: AppShellProps) {
 
             {/* Drawer */}
             <div className="absolute inset-y-0 left-0">
-              <AppSidebar
-                workspaceId={workspaceId}
-                onNavigate={() => setMobileOpen(false)}
-              />
+              <AppSidebar workspaceId={workspaceId} onNavigate={() => setMobileOpen(false)} />
             </div>
           </div>
         )}
 
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <AppHeader
-            onMenuClick={() => setMobileOpen(true)}
-            title={pageTitle}
-            actionLabel={actionLabel}
-          />
+          <AppHeader onMenuClick={() => setMobileOpen(true)} title={pageTitle} actionLabel={actionLabel} />
 
           <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
-            <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+            <div className="mx-auto w-full max-w-[1600px] min-w-0">{children}</div>
           </main>
         </div>
       </div>
