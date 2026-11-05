@@ -15,6 +15,7 @@
     "@better-auth/prisma-adapter": "^1.7.14",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "7.10.1",
+    "@tanstack/react-table": "^9.3.1",
     "better-auth": "^1.7.14",
     "lucide-react": "^1.67.0",
     "next": "16.4.3",
