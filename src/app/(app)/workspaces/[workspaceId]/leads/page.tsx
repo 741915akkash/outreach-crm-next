@@ -245,7 +245,7 @@ export default function LeadsPage() {
         </div>
 
         {/* Responsive table */}
-        <div className="w-full min-w-0 overflow-x-auto">
+        <div className="w-full min-w-0">
           <DataTable
             data={filteredLeads}
             columns={columns}
