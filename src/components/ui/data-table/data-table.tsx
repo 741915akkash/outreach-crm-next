@@ -42,6 +42,17 @@ type DataTableProps<TData extends RowData> = {
   loading?: boolean;
 };
 
+function compareDates<TData>(
+  rowA: { getValue: (columnId: string) => unknown },
+  rowB: { getValue: (columnId: string) => unknown },
+  columnId: string,
+) {
+  const dateA = new Date(String(rowA.getValue(columnId))).getTime();
+  const dateB = new Date(String(rowB.getValue(columnId))).getTime();
+
+  return dateA - dateB;
+}
+
 export function DataTable<TData extends RowData>({
   data,
   columns,
@@ -109,7 +120,7 @@ export function DataTable<TData extends RowData>({
     return rows.map((row) => (
       <tr key={row.id} className="transition hover:bg-gray-100">
         {row.getVisibleCells().map((cell) => (
-          <td key={cell.id} className="px-5 py-4">
+          <td key={cell.id} className="px-5 py-4 text-sm text-gray-600">
             <table.FlexRender cell={cell} />
           </td>
         ))}
@@ -119,7 +130,19 @@ export function DataTable<TData extends RowData>({
 
   const table = useTable({
     features: dataTableFeatures,
-    columns: [selectionColumn, ...columns],
+    columns: [
+      selectionColumn,
+      ...columns.map((column) => {
+        if ('accessorKey' in column && column.accessorKey === 'createdAt') {
+          return {
+            ...column,
+            sortFn: compareDates,
+          };
+        }
+
+        return column;
+      }),
+    ],
     data,
     state: {
       sorting,
@@ -137,37 +160,39 @@ export function DataTable<TData extends RowData>({
     <div>
       <DataTableToolbar table={table}>{children}</DataTableToolbar>
 
-      <table className="w-full min-w-[850px] text-left">
-        <thead className="bg-gray-50">
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers
-                .filter((header) => header.column.getIsVisible())
-                .map((header) => (
-                  <th
-                    key={header.id}
-                    onClick={() => handleHeaderClick(header.column)}
-                    className={`px-5 py-5 text-sm font-semibold text-gray-600 ${
-                      header.column.getCanSort() ? 'cursor-pointer select-none' : ''
-                    }`}
-                  >
-                    {header.isPlaceholder ? null : (
-                      <div className="flex items-center justify-center gap-1">
-                        <table.FlexRender header={header} />
+      <div className="w-full overflow-x-auto">
+        <table className="w-full min-w-[850px] text-left">
+          <thead className="bg-gray-50">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers
+                  .filter((header) => header.column.getIsVisible())
+                  .map((header) => (
+                    <th
+                      key={header.id}
+                      onClick={() => handleHeaderClick(header.column)}
+                      className={`px-5 py-5 text-sm font-semibold text-gray-600 ${
+                        header.column.getCanSort() ? 'cursor-pointer select-none' : ''
+                      }`}
+                    >
+                      {header.isPlaceholder ? null : (
+                        <div className="flex items-center justify-center gap-1">
+                          <table.FlexRender header={header} />
 
-                        {header.column.getIsSorted() === 'asc' && <ArrowUp className="size-3.5 text-gray-900" />}
+                          {header.column.getIsSorted() === 'asc' && <ArrowUp className="size-3.5 text-gray-900" />}
 
-                        {header.column.getIsSorted() === 'desc' && <ArrowDown className="size-3.5 text-gray-900" />}
-                      </div>
-                    )}
-                  </th>
-                ))}
-            </tr>
-          ))}
-        </thead>
+                          {header.column.getIsSorted() === 'desc' && <ArrowDown className="size-3.5 text-gray-900" />}
+                        </div>
+                      )}
+                    </th>
+                  ))}
+              </tr>
+            ))}
+          </thead>
 
-        <tbody className="divide-y divide-gray-100">{renderTableContent()}</tbody>
-      </table>
+          <tbody className="divide-y divide-gray-100">{renderTableContent()}</tbody>
+        </table>
+      </div>
 
       <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3">
         <div className="flex items-center gap-2">

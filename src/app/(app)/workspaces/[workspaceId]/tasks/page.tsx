@@ -3,6 +3,9 @@
 import { useMemo, useState } from 'react';
 import { Search, MoreHorizontal, ArrowUpDown, CheckSquare } from 'lucide-react';
 
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable, dataTableFeatures } from '@/components/ui/data-table/data-table';
+
 type TaskStatus = 'To do' | 'In progress' | 'Completed';
 type TaskPriority = 'Low' | 'Medium' | 'High';
 
@@ -103,6 +106,103 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState('All priorities');
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
 
+  const columns: ColumnDef<typeof dataTableFeatures, Task>[] = [
+    {
+      accessorKey: 'title',
+      header: 'Task',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
+            <CheckSquare className="size-4" />
+          </div>
+          <p className="text-sm font-medium text-gray-900">{row.original.title}</p>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'relatedTo',
+      header: 'Related to',
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'dueDate',
+      header: 'Due date',
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'priority',
+      header: 'Priority',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${priorityStyles[row.original.priority]}`}
+        >
+          {row.original.priority}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.original.status]}`}
+        >
+          {row.original.status}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'assignee',
+      header: 'Assignee',
+      enableSorting: true,
+    },
+    {
+      id: 'actions',
+      header: '',
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) => {
+        const task = row.original;
+
+        return (
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={`Actions for ${task.title}`}
+              onClick={() => setActiveMenu(activeMenu === task.id ? null : task.id)}
+              className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+
+            {activeMenu === task.id && (
+              <div className="absolute top-10 right-8 z-10 w-36 rounded-lg border border-gray-200 bg-white p-1 text-left shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu(null)}
+                  className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  View task
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu(null)}
+                  className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Edit task
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
   const filteredTasks = useMemo(() => {
     return mockTasks.filter((task) => {
       const searchTerm = search.toLowerCase();
@@ -112,11 +212,9 @@ export default function TasksPage() {
         task.relatedTo.toLowerCase().includes(searchTerm) ||
         task.assignee.toLowerCase().includes(searchTerm);
 
-      const matchesStatus =
-        statusFilter === 'All statuses' || task.status === statusFilter;
+      const matchesStatus = statusFilter === 'All statuses' || task.status === statusFilter;
 
-      const matchesPriority =
-        priorityFilter === 'All priorities' || task.priority === priorityFilter;
+      const matchesPriority = priorityFilter === 'All priorities' || task.priority === priorityFilter;
 
       return matchesSearch && matchesStatus && matchesPriority;
     });
@@ -125,16 +223,10 @@ export default function TasksPage() {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        {/* Toolbar */}
-        <div className="flex flex-col gap-4 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div>
-            <h2 className="font-semibold text-gray-900">All tasks</h2>
-            <p className="mt-1 text-xs text-gray-500">
-              {filteredTasks.length} of {mockTasks.length} tasks
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
+        {/* Tasks table */}
+        <div className="w-full min-w-0">
+          <DataTable data={filteredTasks} columns={columns} emptyMessage="No tasks match your search or filters">
+            {/* Search */}
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -146,6 +238,7 @@ export default function TasksPage() {
               />
             </div>
 
+            {/* Status filter */}
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
@@ -157,6 +250,7 @@ export default function TasksPage() {
               ))}
             </select>
 
+            {/* Priority filter */}
             <select
               value={priorityFilter}
               onChange={(event) => setPriorityFilter(event.target.value)}
@@ -167,128 +261,7 @@ export default function TasksPage() {
                 <option key={priority}>{priority}</option>
               ))}
             </select>
-          </div>
-        </div>
-
-        {/* Tasks table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[950px] text-left">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/70">
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  <span className="inline-flex items-center gap-1">
-                    Task <ArrowUpDown className="size-3" />
-                  </span>
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Related to
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Due date
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Priority
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Status
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Assignee
-                </th>
-                <th className="w-12 px-5 py-3" />
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-gray-100">
-              {filteredTasks.map((task) => (
-                <tr key={task.id} className="transition hover:bg-gray-50/70">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
-                        <CheckSquare className="size-4" />
-                      </div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {task.title}
-                      </p>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    {task.relatedTo}
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-gray-500">
-                    {task.dueDate}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${priorityStyles[task.priority]}`}
-                    >
-                      {task.priority}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[task.status]}`}
-                    >
-                      {task.status}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    {task.assignee}
-                  </td>
-
-                  <td className="relative px-5 py-4 text-right">
-                    <button
-                      type="button"
-                      aria-label={`Actions for ${task.title}`}
-                      onClick={() =>
-                        setActiveMenu(activeMenu === task.id ? null : task.id)
-                      }
-                      className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-                    >
-                      <MoreHorizontal className="size-4" />
-                    </button>
-
-                    {activeMenu === task.id && (
-                      <div className="absolute top-12 right-8 z-10 w-36 rounded-lg border border-gray-200 bg-white p-1 text-left shadow-lg">
-                        <button
-                          type="button"
-                          onClick={() => setActiveMenu(null)}
-                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          View task
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActiveMenu(null)}
-                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          Edit task
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-
-              {filteredTasks.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center">
-                    <p className="text-sm font-medium text-gray-700">
-                      No tasks found
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Try adjusting your search or filters.
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          </DataTable>
         </div>
       </section>
     </div>

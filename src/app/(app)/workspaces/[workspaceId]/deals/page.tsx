@@ -3,8 +3,10 @@
 import { useMemo, useState } from 'react';
 import { Search, MoreHorizontal, ArrowUpDown, Handshake } from 'lucide-react';
 
-type DealStage =
-  'New' | 'Qualified' | 'Proposal' | 'Negotiation' | 'Won' | 'Lost';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable, dataTableFeatures } from '@/components/ui/data-table/data-table';
+
+type DealStage = 'New' | 'Qualified' | 'Proposal' | 'Negotiation' | 'Won' | 'Lost';
 
 type Deal = {
   id: number;
@@ -99,19 +101,107 @@ const stageStyles: Record<DealStage, string> = {
   Lost: 'bg-red-50 text-red-700',
 };
 
-const stages: DealStage[] = [
-  'New',
-  'Qualified',
-  'Proposal',
-  'Negotiation',
-  'Won',
-  'Lost',
-];
+const stages: DealStage[] = ['New', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 
 export default function DealsPage() {
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('All stages');
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
+
+  const columns: ColumnDef<typeof dataTableFeatures, Deal>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Deal',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <p className="text-sm font-medium text-gray-900">{row.original.name}</p>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'company',
+      header: 'Company',
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'contact',
+      header: 'Contact',
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'stage',
+      header: 'Stage',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${stageStyles[row.original.stage]}`}
+        >
+          {row.original.stage}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'value',
+      header: 'Value',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className="text-sm font-medium text-gray-900 tabular-nums">{formatCurrency(row.original.value)}</span>
+      ),
+    },
+    {
+      accessorKey: 'expectedCloseDate',
+      header: 'Expected close',
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'owner',
+      header: 'Owner',
+      enableSorting: true,
+    },
+    {
+      id: 'actions',
+      header: '',
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) => {
+        const deal = row.original;
+
+        return (
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={`Actions for ${deal.name}`}
+              onClick={() => setActiveMenu(activeMenu === deal.id ? null : deal.id)}
+              className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+
+            {activeMenu === deal.id && (
+              <div className="absolute top-10 right-8 z-10 w-36 rounded-lg border border-gray-200 bg-white p-1 text-left shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu(null)}
+                  className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  View deal
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu(null)}
+                  className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Edit deal
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
 
   const filteredDeals = useMemo(() => {
     return mockDeals.filter((deal) => {
@@ -122,8 +212,7 @@ export default function DealsPage() {
         deal.company.toLowerCase().includes(searchTerm) ||
         deal.contact.toLowerCase().includes(searchTerm);
 
-      const matchesStage =
-        stageFilter === 'All stages' || deal.stage === stageFilter;
+      const matchesStage = stageFilter === 'All stages' || deal.stage === stageFilter;
 
       return matchesSearch && matchesStage;
     });
@@ -139,16 +228,10 @@ export default function DealsPage() {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        {/* Toolbar */}
-        <div className="flex flex-col gap-4 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div>
-            <h2 className="font-semibold text-gray-900">All deals</h2>
-            <p className="mt-1 text-xs text-gray-500">
-              {filteredDeals.length} of {mockDeals.length} deals
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
+        {/* Deals table */}
+        <div className="w-full min-w-0">
+          <DataTable data={filteredDeals} columns={columns} emptyMessage="No deals match your search or stage filter">
+            {/* Search */}
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -160,6 +243,7 @@ export default function DealsPage() {
               />
             </div>
 
+            {/* Stage filter */}
             <select
               value={stageFilter}
               onChange={(event) => setStageFilter(event.target.value)}
@@ -170,131 +254,7 @@ export default function DealsPage() {
                 <option key={stage}>{stage}</option>
               ))}
             </select>
-          </div>
-        </div>
-
-        {/* Deals table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] text-left">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/70">
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  <span className="inline-flex items-center gap-1">
-                    Deal <ArrowUpDown className="size-3" />
-                  </span>
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Company
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Contact
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Stage
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Value
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Expected close
-                </th>
-                <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                  Owner
-                </th>
-                <th className="w-12 px-5 py-3" />
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-gray-100">
-              {filteredDeals.map((deal) => (
-                <tr key={deal.id} className="transition hover:bg-gray-50/70">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
-                        <Handshake className="size-4" />
-                      </div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {deal.name}
-                      </p>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    {deal.company}
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    {deal.contact}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${stageStyles[deal.stage]}`}
-                    >
-                      {deal.stage}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4 text-sm font-medium text-gray-900 tabular-nums">
-                    {formatCurrency(deal.value)}
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-gray-500">
-                    {deal.expectedCloseDate}
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    {deal.owner}
-                  </td>
-
-                  <td className="relative px-5 py-4 text-right">
-                    <button
-                      type="button"
-                      aria-label={`Actions for ${deal.name}`}
-                      onClick={() =>
-                        setActiveMenu(activeMenu === deal.id ? null : deal.id)
-                      }
-                      className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-                    >
-                      <MoreHorizontal className="size-4" />
-                    </button>
-
-                    {activeMenu === deal.id && (
-                      <div className="absolute top-12 right-8 z-10 w-36 rounded-lg border border-gray-200 bg-white p-1 text-left shadow-lg">
-                        <button
-                          type="button"
-                          onClick={() => setActiveMenu(null)}
-                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          View deal
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActiveMenu(null)}
-                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          Edit deal
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-
-              {filteredDeals.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center">
-                    <p className="text-sm font-medium text-gray-700">
-                      No deals found
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Try adjusting your search or stage filter.
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          </DataTable>
         </div>
       </section>
     </div>
