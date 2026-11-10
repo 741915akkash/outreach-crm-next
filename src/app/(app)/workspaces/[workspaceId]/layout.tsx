@@ -1,4 +1,5 @@
-import { AppShell } from "@/components/layout/app-shell";
+import { AppShell } from '@/components/layout/app-shell';
+import { Suspense } from 'react';
 
 type WorkspaceLayoutProps = {
   children: React.ReactNode;
@@ -7,15 +8,16 @@ type WorkspaceLayoutProps = {
   }>;
 };
 
-export default async function WorkspaceLayout({
-  children,
-  params,
-}: WorkspaceLayoutProps) {
+async function WorkspaceContent({ children, params }: WorkspaceLayoutProps) {
   const { workspaceId } = await params;
 
+  return <AppShell workspaceId={workspaceId}>{children}</AppShell>;
+}
+
+export default function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
   return (
-    <AppShell workspaceId={workspaceId}>
-      {children}
-    </AppShell>
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
+      <WorkspaceContent params={params}>{children}</WorkspaceContent>
+    </Suspense>
   );
 }
