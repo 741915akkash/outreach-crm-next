@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 
 import { AppHeader } from '@/components/layout/app-header';
@@ -11,9 +11,11 @@ type AppShellProps = {
   workspaceId: string;
 };
 
-export function AppShell({ children, workspaceId }: AppShellProps) {
-  const [mobileOpen, setMobileOpen] = useState(false);
+type PageHeaderProps = {
+  onMenuClick: () => void;
+};
 
+function PageHeader({ onMenuClick }: PageHeaderProps) {
   const pathname = usePathname();
 
   let pageTitle = 'Dashboard';
@@ -45,12 +47,20 @@ export function AppShell({ children, workspaceId }: AppShellProps) {
       break;
   }
 
+  return <AppHeader onMenuClick={onMenuClick} title={pageTitle} actionLabel={actionLabel} />;
+}
+
+export function AppShell({ children, workspaceId }: AppShellProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="min-h-screen sm:pl-[250px]">
         {/* Desktop sidebar */}
         <div className="fixed inset-y-0 left-0 z-40 hidden w-[250px] sm:block">
-          <AppSidebar workspaceId={workspaceId} />
+          <Suspense fallback={null}>
+            <AppSidebar workspaceId={workspaceId} />
+          </Suspense>
         </div>
 
         {/* Mobile sidebar drawer */}
@@ -66,14 +76,18 @@ export function AppShell({ children, workspaceId }: AppShellProps) {
 
             {/* Drawer */}
             <div className="absolute inset-y-0 left-0">
-              <AppSidebar workspaceId={workspaceId} onNavigate={() => setMobileOpen(false)} />
+              <Suspense fallback={null}>
+                <AppSidebar workspaceId={workspaceId} onNavigate={() => setMobileOpen(false)} />
+              </Suspense>
             </div>
           </div>
         )}
 
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <AppHeader onMenuClick={() => setMobileOpen(true)} title={pageTitle} actionLabel={actionLabel} />
+          <Suspense fallback={<AppHeader onMenuClick={() => setMobileOpen(true)} title="Dashboard" />}>
+            <PageHeader onMenuClick={() => setMobileOpen(true)} />
+          </Suspense>
 
           <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
             <div className="mx-auto w-full max-w-[1600px] min-w-0">{children}</div>
