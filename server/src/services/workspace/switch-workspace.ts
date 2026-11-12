@@ -1,4 +1,4 @@
-import { getSession } from '@server/services/auth/get-session.js';
+import type { AuthenticatedContext } from '@server/context/execution-context.js';
 import { getWorkspaceMembership } from './get-workspace-membership.js';
 
 export class WorkspaceSwitchError extends Error {
@@ -8,14 +8,12 @@ export class WorkspaceSwitchError extends Error {
   }
 }
 
-export async function switchWorkspace(workspaceId: string) {
-  const session = await getSession();
-
-  if (!session) {
-    throw new Error('Authentication required.');
+export async function switchWorkspace(context: AuthenticatedContext, workspaceId: string) {
+  if (context.actor.type !== 'USER') {
+    throw new WorkspaceSwitchError('Only users can switch workspaces.');
   }
 
-  const membership = await getWorkspaceMembership(session.user.id, workspaceId);
+  const membership = await getWorkspaceMembership(context.actor.id, workspaceId);
 
   if (!membership) {
     throw new WorkspaceSwitchError();

@@ -1,24 +1,20 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import type { Actor } from '@server/context/actor.js';
+import type { AuthenticatedContext } from '@server/context/execution-context.js';
 import { resolveExecutionContext } from '@server/context/resolve-execution-context.js';
 import { AppError } from '@server/errors/app-error.js';
 import { ERROR_CODES } from '@server/errors/error-codes.js';
 
 export async function workspaceContext(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const actor = res.locals.actor as Actor | undefined;
-    const requestId = res.locals.requestId as string | undefined;
+    const authContext = res.locals.authContext as AuthenticatedContext | undefined;
+
     const workspaceIdParam = req.params.workspaceId;
 
     const workspaceId = typeof workspaceIdParam === 'string' ? workspaceIdParam : undefined;
 
-    if (!actor) {
+    if (!authContext) {
       throw new AppError(ERROR_CODES.UNAUTHENTICATED, 'Authentication required.', 401);
-    }
-
-    if (!requestId) {
-      throw new AppError(ERROR_CODES.INTERNAL_ERROR, 'Request context is unavailable.', 500);
     }
 
     if (!workspaceId) {
@@ -26,9 +22,9 @@ export async function workspaceContext(req: Request, res: Response, next: NextFu
     }
 
     const context = await resolveExecutionContext({
-      actor,
+      actor: authContext.actor,
       workspaceId,
-      requestId,
+      requestId: authContext.requestId,
     });
 
     res.locals.executionContext = context;

@@ -4,6 +4,7 @@ import { toNodeHandler } from 'better-auth/node';
 import { auth } from './auth/index.js';
 import { errorHandler } from './errors/error-response.js';
 import { requestContext } from './middleware/request-context.js';
+import apiRouter from './routes/index.js';
 
 const app = express();
 
@@ -16,6 +17,9 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 
 // Parse JSON for our application API routes.
 app.use(express.json());
+
+// Versioned application API.
+app.use('/api', apiRouter);
 
 // Health check endpoint.
 app.get('/health', (_req, res) => {
