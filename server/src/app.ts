@@ -5,6 +5,7 @@ import { auth } from './auth/index.js';
 import { errorHandler } from './shared/errors/error-response.js';
 import { requestContext } from './shared/middleware/request-context.js';
 import apiRouter from './routes/index.js';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 
 // Parse JSON for our application API routes.
 app.use(express.json());
+app.use(cookieParser());
 
 // Versioned application API.
 app.use('/api', apiRouter);

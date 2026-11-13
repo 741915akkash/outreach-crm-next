@@ -4,6 +4,8 @@ import { WorkspaceRole } from '@/generated/prisma/enums.js';
 
 import type { ExecutionContext } from '@server/shared/context/execution-context.js';
 import { prisma } from '@server/shared/db/client.js';
+import { AppError } from '@server/shared/errors/app-error.js';
+import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
 import { requireWorkspaceRole } from './require-workspace-role.js';
 
 type CreateInvitationInput = {
@@ -20,7 +22,7 @@ export async function createInvitation(context: ExecutionContext, { email, role 
   const normalizedEmail = email.trim().toLowerCase();
 
   if (!normalizedEmail) {
-    throw new Error('Email is required.');
+    throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Email is required.', 400);
   }
 
   const existingUser = await prisma.user.findFirst({
@@ -43,7 +45,7 @@ export async function createInvitation(context: ExecutionContext, { email, role 
     });
 
     if (existingMembership) {
-      throw new Error('User is already a member of this workspace.');
+      throw new AppError(ERROR_CODES.CONFLICT, 'User is already a member of this workspace.', 409);
     }
   }
 
@@ -63,7 +65,7 @@ export async function createInvitation(context: ExecutionContext, { email, role 
   });
 
   if (pendingInvitation) {
-    throw new Error('An active invitation already exists for this email.');
+    throw new AppError(ERROR_CODES.CONFLICT, 'An active invitation already exists for this email.', 409);
   }
 
   const token = randomBytes(32).toString('base64url');

@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 
 import type { AuthenticatedContext } from '@server/shared/context/execution-context.js';
 import { prisma } from '@server/shared/db/client.js';
+import { AppError } from '@server/shared/errors/app-error.js';
+import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
 
 type AcceptInvitationInput = {
   token: string;
@@ -9,7 +11,7 @@ type AcceptInvitationInput = {
 
 export async function acceptInvitation(context: AuthenticatedContext, { token }: AcceptInvitationInput) {
   if (context.actor.type !== 'USER') {
-    throw new Error('Authentication required.');
+    throw new AppError(ERROR_CODES.UNAUTHENTICATED, 'Authentication required.', 401);
   }
 
   const userId = context.actor.id;
@@ -24,15 +26,15 @@ export async function acceptInvitation(context: AuthenticatedContext, { token }:
   });
 
   if (!user) {
-    throw new Error('Authentication required.');
+    throw new AppError(ERROR_CODES.UNAUTHENTICATED, 'Authentication required.', 401);
   }
 
   if (!user.emailVerified) {
-    throw new Error('Email verification is required.');
+    throw new AppError(ERROR_CODES.FORBIDDEN, 'Email verification is required.', 403);
   }
 
   if (!token.trim()) {
-    throw new Error('Invitation token is required.');
+    throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invitation token is required.', 400);
   }
 
   const tokenHash = createHash('sha256').update(token).digest('hex');
@@ -45,11 +47,11 @@ export async function acceptInvitation(context: AuthenticatedContext, { token }:
     });
 
     if (!invitation || invitation.expiresAt <= now || invitation.revokedAt || invitation.acceptedAt) {
-      throw new Error('Invitation is invalid or expired.');
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Invitation is invalid or expired.', 404);
     }
 
     if (invitation.email.trim().toLowerCase() !== normalizedEmail) {
-      throw new Error('This invitation belongs to a different email address.');
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'This invitation belongs to a different email address.', 403);
     }
 
     const existingMembership = await tx.membership.findUnique({
@@ -62,7 +64,7 @@ export async function acceptInvitation(context: AuthenticatedContext, { token }:
     });
 
     if (existingMembership) {
-      throw new Error('You are already a member of this workspace.');
+      throw new AppError(ERROR_CODES.CONFLICT, 'You are already a member of this workspace.', 409);
     }
 
     const claimed = await tx.invitation.updateMany({
@@ -79,7 +81,7 @@ export async function acceptInvitation(context: AuthenticatedContext, { token }:
     });
 
     if (claimed.count !== 1) {
-      throw new Error('Invitation has already been accepted or is no longer valid.');
+      throw new AppError(ERROR_CODES.CONFLICT, 'Invitation has already been accepted or is no longer valid.', 409);
     }
 
     return tx.membership.create({
