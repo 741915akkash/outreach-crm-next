@@ -1,9 +1,9 @@
-import { getSession } from '@server/services/auth/get-session.js';
+import type { AuthenticatedContext } from '@server/shared/context/execution-context.js';
 import { getWorkspaceMembership } from './get-workspace-membership.js';
 
 export class UnauthenticatedError extends Error {
   constructor() {
-    super('Authentication required');
+    super('Authentication required.');
     this.name = 'UnauthenticatedError';
   }
 }
@@ -15,23 +15,16 @@ export class WorkspaceMembershipRequiredError extends Error {
   }
 }
 
-export async function requireWorkspace(workspaceId: string) {
-  const session = await getSession();
-
-  if (!session) {
+export async function requireWorkspace(context: AuthenticatedContext, workspaceId: string) {
+  if (context.actor.type !== 'USER') {
     throw new UnauthenticatedError();
   }
 
-  const membership = await getWorkspaceMembership(session.user.id, workspaceId);
+  const membership = await getWorkspaceMembership(context.actor.id, workspaceId);
 
   if (!membership) {
     throw new WorkspaceMembershipRequiredError();
   }
 
-  return {
-    user: session.user,
-    session: session.session,
-    membership,
-    workspace: membership.workspace,
-  };
+  return membership;
 }

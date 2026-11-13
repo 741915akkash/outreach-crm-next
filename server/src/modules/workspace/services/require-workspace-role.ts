@@ -1,5 +1,5 @@
 import type { WorkspaceRole } from '@/generated/prisma/enums.js';
-import { requireWorkspace } from './require-workspace.js';
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
 
 export class ForbiddenError extends Error {
   constructor(message = 'You do not have permission to perform this action.') {
@@ -8,12 +8,8 @@ export class ForbiddenError extends Error {
   }
 }
 
-export async function requireWorkspaceRole(workspaceId: string, allowedRoles: WorkspaceRole[]) {
-  const context = await requireWorkspace(workspaceId);
-
-  if (!allowedRoles.includes(context.membership.role)) {
+export function requireWorkspaceRole(context: ExecutionContext, allowedRoles: WorkspaceRole[]): void {
+  if (!allowedRoles.includes(context.workspace.role)) {
     throw new ForbiddenError();
   }
-
-  return context;
 }

@@ -2,8 +2,8 @@ import express from 'express';
 import { toNodeHandler } from 'better-auth/node';
 
 import { auth } from './auth/index.js';
-import { errorHandler } from './errors/error-response.js';
-import { requestContext } from './middleware/request-context.js';
+import { errorHandler } from './shared/errors/error-response.js';
+import { requestContext } from './shared/middleware/request-context.js';
 import apiRouter from './routes/index.js';
 
 const app = express();

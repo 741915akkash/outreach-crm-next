@@ -1,9 +1,9 @@
-import { AppError } from '../errors/app-error.js';
-import { ERROR_CODES } from '../errors/error-codes.js';
-import { getWorkspaceMembership } from '../services/workspace/get-workspace-membership.js';
+import { AppError } from '@server/shared/errors/app-error.js';
+import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
+import { getWorkspaceMembership } from './services/get-workspace-membership.js';
 
-import type { Actor } from './actor.js';
-import type { ExecutionContext } from './execution-context.js';
+import type { Actor } from '@server/shared/context/actor.js';
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
 
 type ResolveExecutionContextInput = {
   actor: Actor;

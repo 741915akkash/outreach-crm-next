@@ -1,19 +1,19 @@
 import { WorkspaceRole } from '@/generated/prisma/enums.js';
-import { prisma } from '@server/db/client.js';
+
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
+import { prisma } from '@server/shared/db/client.js';
 import { requireWorkspaceRole } from './require-workspace-role.js';
 
-type DeleteWorkspaceInput = {
-  workspaceId: string;
-};
+export async function deleteWorkspace(context: ExecutionContext) {
+  requireWorkspaceRole(context, [WorkspaceRole.OWNER]);
 
-export async function deleteWorkspace({ workspaceId }: DeleteWorkspaceInput) {
-  const { membership } = await requireWorkspaceRole(workspaceId, [WorkspaceRole.OWNER]);
+  const workspaceId = context.workspace.workspaceId;
 
   return prisma.$transaction(async (tx) => {
     const currentMembership = await tx.membership.findFirst({
       where: {
-        id: membership.id,
         workspaceId,
+        userId: context.actor.id,
         role: WorkspaceRole.OWNER,
       },
     });

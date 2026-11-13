@@ -1,18 +1,20 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 
 import { WorkspaceRole } from '@/generated/prisma/enums.js';
-import { prisma } from '@server/db/client.js';
+
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
+import { prisma } from '@server/shared/db/client.js';
 import { requireWorkspaceRole } from './require-workspace-role.js';
 
 type ResendInvitationInput = {
-  workspaceId: string;
   invitationId: string;
 };
 
-const INVITATION_EXPIRY_DAYS = 7;
+export async function resendInvitation(context: ExecutionContext, { invitationId }: ResendInvitationInput) {
+  requireWorkspaceRole(context, [WorkspaceRole.OWNER]);
 
-export async function resendInvitation({ workspaceId, invitationId }: ResendInvitationInput) {
-  const { user } = await requireWorkspaceRole(workspaceId, [WorkspaceRole.OWNER]);
+  const workspaceId = context.workspace.workspaceId;
+  const userId = context.actor.id;
 
   const now = new Date();
 
@@ -22,9 +24,7 @@ export async function resendInvitation({ workspaceId, invitationId }: ResendInvi
       workspaceId,
       acceptedAt: null,
       revokedAt: null,
-      expiresAt: {
-        gt: now,
-      },
+      expiresAt: { gt: now },
     },
   });
 
@@ -33,24 +33,17 @@ export async function resendInvitation({ workspaceId, invitationId }: ResendInvi
   }
 
   const token = randomBytes(32).toString('base64url');
-
   const tokenHash = createHash('sha256').update(token).digest('hex');
-
-  const expiresAt = new Date(now.getTime() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const updatedInvitation = await prisma.invitation.update({
-    where: {
-      id: invitation.id,
-    },
+    where: { id: invitation.id },
     data: {
       tokenHash,
       expiresAt,
-      invitedById: user.id,
+      invitedById: userId,
     },
   });
 
-  return {
-    invitation: updatedInvitation,
-    token,
-  };
+  return { invitation: updatedInvitation, token };
 }

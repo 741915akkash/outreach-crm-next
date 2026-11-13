@@ -1,4 +1,4 @@
-import type { AuthenticatedContext } from '@server/context/execution-context.js';
+import type { AuthenticatedContext } from '@server/shared/context/execution-context.js';
 import { getWorkspaceMembership } from './get-workspace-membership.js';
 
 export class WorkspaceSwitchError extends Error {

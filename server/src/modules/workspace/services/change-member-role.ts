@@ -1,15 +1,19 @@
 import { WorkspaceRole } from '@/generated/prisma/enums.js';
-import { prisma } from '@server/db/client.js';
+
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
+import { prisma } from '@server/shared/db/client.js';
 import { requireWorkspaceRole } from './require-workspace-role.js';
 
 type ChangeMemberRoleInput = {
-  workspaceId: string;
   membershipId: string;
   role: typeof WorkspaceRole.ADMIN | typeof WorkspaceRole.MEMBER;
 };
 
-export async function changeMemberRole({ workspaceId, membershipId, role }: ChangeMemberRoleInput) {
-  const { user } = await requireWorkspaceRole(workspaceId, [WorkspaceRole.OWNER]);
+export async function changeMemberRole(context: ExecutionContext, { membershipId, role }: ChangeMemberRoleInput) {
+  requireWorkspaceRole(context, [WorkspaceRole.OWNER]);
+
+  const workspaceId = context.workspace.workspaceId;
+  const userId = context.actor.id;
 
   return prisma.$transaction(async (tx) => {
     const membership = await tx.membership.findFirst({
@@ -23,7 +27,7 @@ export async function changeMemberRole({ workspaceId, membershipId, role }: Chan
       throw new Error('Workspace member not found.');
     }
 
-    if (membership.userId === user.id) {
+    if (membership.userId === userId) {
       throw new Error('You cannot change your own role.');
     }
 
@@ -32,12 +36,8 @@ export async function changeMemberRole({ workspaceId, membershipId, role }: Chan
     }
 
     return tx.membership.update({
-      where: {
-        id: membership.id,
-      },
-      data: {
-        role,
-      },
+      where: { id: membership.id },
+      data: { role },
       include: {
         user: {
           select: {

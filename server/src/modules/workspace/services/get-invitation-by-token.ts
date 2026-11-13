@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { prisma } from '@server/db/client.js';
+import { prisma } from '@server/shared/db/client.js';
 
 type GetInvitationByTokenInput = {
   token: string;

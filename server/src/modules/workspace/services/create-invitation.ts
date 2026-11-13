@@ -1,24 +1,26 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 
 import { WorkspaceRole } from '@/generated/prisma/enums.js';
-import { prisma } from '@server/db/client.js';
+
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
+import { prisma } from '@server/shared/db/client.js';
 import { requireWorkspaceRole } from './require-workspace-role.js';
 
 type CreateInvitationInput = {
-  workspaceId: string;
   email: string;
   role: typeof WorkspaceRole.ADMIN | typeof WorkspaceRole.MEMBER;
 };
 
-const INVITATION_EXPIRY_DAYS = 7;
+export async function createInvitation(context: ExecutionContext, { email, role }: CreateInvitationInput) {
+  requireWorkspaceRole(context, [WorkspaceRole.OWNER]);
 
-export async function createInvitation({ workspaceId, email, role }: CreateInvitationInput) {
-  const { user } = await requireWorkspaceRole(workspaceId, [WorkspaceRole.OWNER]);
+  const workspaceId = context.workspace.workspaceId;
+  const userId = context.actor.id;
 
   const normalizedEmail = email.trim().toLowerCase();
 
   if (!normalizedEmail) {
-    throw new Error('Email address is required.');
+    throw new Error('Email is required.');
   }
 
   const existingUser = await prisma.user.findFirst({
@@ -56,21 +58,17 @@ export async function createInvitation({ workspaceId, email, role }: CreateInvit
       },
       acceptedAt: null,
       revokedAt: null,
-      expiresAt: {
-        gt: now,
-      },
+      expiresAt: { gt: now },
     },
   });
 
   if (pendingInvitation) {
-    throw new Error('A pending invitation already exists for this email.');
+    throw new Error('An active invitation already exists for this email.');
   }
 
   const token = randomBytes(32).toString('base64url');
-
   const tokenHash = createHash('sha256').update(token).digest('hex');
-
-  const expiresAt = new Date(now.getTime() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const invitation = await prisma.invitation.create({
     data: {
@@ -78,13 +76,10 @@ export async function createInvitation({ workspaceId, email, role }: CreateInvit
       email: normalizedEmail,
       role,
       tokenHash,
-      invitedById: user.id,
+      invitedById: userId,
       expiresAt,
     },
   });
 
-  return {
-    invitation,
-    token,
-  };
+  return { invitation, token };
 }

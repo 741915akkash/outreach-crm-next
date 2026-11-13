@@ -1,5 +1,5 @@
 import app from './app.js';
-import { prisma } from './db/client.js';
+import { prisma } from './shared/db/client.js';
 
 const PORT = Number(process.env.PORT) || 7000;
 

@@ -1,14 +1,18 @@
 import { WorkspaceRole } from '@/generated/prisma/enums.js';
-import { prisma } from '@server/db/client.js';
+
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
+import { prisma } from '@server/shared/db/client.js';
 import { requireWorkspaceRole } from './require-workspace-role.js';
 
 type RemoveWorkspaceMemberInput = {
-  workspaceId: string;
   membershipId: string;
 };
 
-export async function removeWorkspaceMember({ workspaceId, membershipId }: RemoveWorkspaceMemberInput) {
-  const { user } = await requireWorkspaceRole(workspaceId, [WorkspaceRole.OWNER]);
+export async function removeWorkspaceMember(context: ExecutionContext, { membershipId }: RemoveWorkspaceMemberInput) {
+  requireWorkspaceRole(context, [WorkspaceRole.OWNER]);
+
+  const workspaceId = context.workspace.workspaceId;
+  const userId = context.actor.id;
 
   return prisma.$transaction(async (tx) => {
     const membership = await tx.membership.findFirst({
@@ -22,7 +26,7 @@ export async function removeWorkspaceMember({ workspaceId, membershipId }: Remov
       throw new Error('Workspace member not found.');
     }
 
-    if (membership.userId === user.id) {
+    if (membership.userId === userId) {
       throw new Error('You cannot remove yourself from this workspace.');
     }
 
@@ -31,9 +35,7 @@ export async function removeWorkspaceMember({ workspaceId, membershipId }: Remov
     }
 
     await tx.membership.delete({
-      where: {
-        id: membership.id,
-      },
+      where: { id: membership.id },
     });
 
     return membership;

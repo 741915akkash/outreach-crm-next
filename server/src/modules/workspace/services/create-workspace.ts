@@ -1,13 +1,17 @@
-import { prisma } from '@server/db/client.js';
+import { WorkspaceRole } from '@/generated/prisma/enums.js';
+
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
+import { prisma } from '@server/shared/db/client.js';
 import { requireWorkspaceRole } from './require-workspace-role.js';
 
 type CreateWorkspaceInput = {
-  currentWorkspaceId: string;
   name: string;
 };
 
-export async function createWorkspace({ currentWorkspaceId, name }: CreateWorkspaceInput) {
-  const { user } = await requireWorkspaceRole(currentWorkspaceId, ['OWNER']);
+export async function createWorkspace(context: ExecutionContext, { name }: CreateWorkspaceInput) {
+  requireWorkspaceRole(context, [WorkspaceRole.OWNER]);
+
+  const userId = context.actor.id;
 
   const workspaceName = name.trim();
 
@@ -24,9 +28,9 @@ export async function createWorkspace({ currentWorkspaceId, name }: CreateWorksp
 
     await tx.membership.create({
       data: {
-        userId: user.id,
+        userId,
         workspaceId: workspace.id,
-        role: 'OWNER',
+        role: WorkspaceRole.OWNER,
       },
     });
 

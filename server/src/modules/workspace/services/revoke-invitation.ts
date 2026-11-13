@@ -1,14 +1,17 @@
 import { WorkspaceRole } from '@/generated/prisma/enums.js';
-import { prisma } from '@server/db/client.js';
+
+import type { ExecutionContext } from '@server/shared/context/execution-context.js';
+import { prisma } from '@server/shared/db/client.js';
 import { requireWorkspaceRole } from './require-workspace-role.js';
 
 type RevokeInvitationInput = {
-  workspaceId: string;
   invitationId: string;
 };
 
-export async function revokeInvitation({ workspaceId, invitationId }: RevokeInvitationInput) {
-  await requireWorkspaceRole(workspaceId, [WorkspaceRole.OWNER]);
+export async function revokeInvitation(context: ExecutionContext, { invitationId }: RevokeInvitationInput) {
+  requireWorkspaceRole(context, [WorkspaceRole.OWNER]);
+
+  const workspaceId = context.workspace.workspaceId;
 
   const invitation = await prisma.invitation.findFirst({
     where: {

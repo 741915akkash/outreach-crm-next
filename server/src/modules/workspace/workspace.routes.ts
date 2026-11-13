@@ -1,10 +1,10 @@
 import { Router } from 'express';
 
-import { getAuthContext } from '@server/context/get-auth-context.js';
-import { AppError } from '@server/errors/app-error.js';
-import { ERROR_CODES } from '@server/errors/error-codes.js';
-import { authenticate } from '@server/middleware/authenticate.js';
-import { switchWorkspace, WorkspaceSwitchError } from '@server/services/workspace/switch-workspace.js';
+import { getAuthContext } from '@server/shared/context/get-auth-context.js';
+import { AppError } from '@server/shared/errors/app-error.js';
+import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
+import { authenticate } from '@server/shared/middleware/authenticate.js';
+import { switchWorkspace, WorkspaceSwitchError } from '@server/modules/workspace/services/switch-workspace.js';
 
 const router = Router();
 

@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { AppError } from '@server/errors/app-error.js';
-import { ERROR_CODES } from '@server/errors/error-codes.js';
+import { AppError } from '@server/shared/errors/app-error.js';
+import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
 
 export function errorHandler(error: unknown, _req: Request, res: Response, next: NextFunction): void {
   if (res.headersSent) {

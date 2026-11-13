@@ -1,4 +1,4 @@
-import { prisma } from '../../db/client.js';
+import { prisma } from '@server/shared/db/client.js';
 
 export async function getWorkspaceMembership(userId: string, workspaceId: string) {
   return prisma.membership.findUnique({
