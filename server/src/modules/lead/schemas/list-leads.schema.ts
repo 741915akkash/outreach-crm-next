@@ -6,7 +6,8 @@ const optionalPositiveInt = z.preprocess(
     .string()
     .regex(/^[1-9]\d*$/, 'Must be a positive integer.')
     .transform(Number)
-    .refine(Number.isSafeInteger, 'Value is too large.'),
+    .refine(Number.isSafeInteger, 'Value is too large.')
+    .optional(),
 );
 
 const optionalDate = z.preprocess(
