@@ -22,15 +22,27 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: npm ci
+
+      - name: Install backend dependencies
+        run: npm ci --prefix server
 
       - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Typecheck
+      - name: Typecheck frontend
         run: npm run typecheck
 
-      - name: Production build
+      - name: Typecheck backend
+        run: npm run typecheck --prefix server
+
+      - name: Build frontend
         run: npm run build
+
+      - name: Build backend
+        run: npm run build --prefix server

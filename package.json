@@ -9,7 +9,10 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:api": "npm --prefix server run dev",
+    "build:api": "npm --prefix server run build",
+    "start:api": "npm --prefix server run start"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.14",
