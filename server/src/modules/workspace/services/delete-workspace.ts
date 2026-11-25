@@ -34,17 +34,34 @@ export async function deleteWorkspace(context: ExecutionContext) {
       where: { workspaceId },
     });
 
-    // 3. Delete activities (reference leads and sequences).
-    await tx.leadActivity.deleteMany({
+    // 3. Delete activity associations.
+    await tx.activityLead.deleteMany({
       where: { workspaceId },
     });
 
-    // 4. Delete deal-lead relationships.
+    await tx.activityCompany.deleteMany({
+      where: { workspaceId },
+    });
+
+    await tx.activityDeal.deleteMany({
+      where: { workspaceId },
+    });
+
+    await tx.activityTask.deleteMany({
+      where: { workspaceId },
+    });
+
+    // 4. Delete activities.
+    await tx.activity.deleteMany({
+      where: { workspaceId },
+    });
+
+    // 5. Delete deal-lead relationships.
     await tx.dealLead.deleteMany({
       where: { workspaceId },
     });
 
-    // 5. Delete deals and leads.
+    // 6. Delete deals and leads.
     await tx.deal.deleteMany({
       where: { workspaceId },
     });
@@ -53,21 +70,21 @@ export async function deleteWorkspace(context: ExecutionContext) {
       where: { workspaceId },
     });
 
-    // 6. Delete sequence steps before sequences.
+    // 7. Delete sequence steps before sequences.
     await tx.sequenceStep.deleteMany({
       where: {
         sequence: { workspaceId },
       },
     });
 
-    // 7. Delete pipeline stages before pipelines.
+    // 8. Delete pipeline stages before pipelines.
     await tx.pipelineStage.deleteMany({
       where: {
         pipeline: { workspaceId },
       },
     });
 
-    // 8. Delete supporting CRM records.
+    // 9. Delete supporting CRM records.
     await tx.sequence.deleteMany({
       where: { workspaceId },
     });
@@ -84,12 +101,12 @@ export async function deleteWorkspace(context: ExecutionContext) {
       where: { workspaceId },
     });
 
-    // 9. Delete workspace memberships.
+    // 10. Delete workspace memberships.
     await tx.membership.deleteMany({
       where: { workspaceId },
     });
 
-    // 10. Finally, delete the workspace.
+    // 11. Finally, delete the workspace.
     return tx.workspace.delete({
       where: { id: workspaceId },
     });
