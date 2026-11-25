@@ -7,15 +7,19 @@
     "dev": "node --env-file=../.env --import tsx --watch src/index.ts",
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "start": "node dist/server/src/index.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "worker:dev": "node --env-file=../.env --import tsx --watch src/modules/worker/index.ts",
+    "worker:start": "node dist/server/src/modules/worker/index.js"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.14",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "better-auth": "^1.7.14",
+    "bullmq": "^6.7.8",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
+    "ioredis": "^6.0.0",
     "nodemailer": "^10.3.1",
     "pg": "^8.23.1",
     "zod": "^4.6.7"
