@@ -95,17 +95,18 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships Membership[]
-  leads       Lead[]
-  pipelines   Pipeline[]
-  sources     Source[]
-  activities  LeadActivity[]
-  sequences   Sequence[]
-  companies   Company[]
-  deals       Deal[]
-  tasks       Task[]
-  invitations Invitation[]
-  dealLeads   DealLead[]
+  memberships  Membership[]
+  leads        Lead[]
+  pipelines    Pipeline[]
+  sources      Source[]
+  activities   Activity[]
+  outboxEvents OutboxEvent[]
+  sequences    Sequence[]
+  companies    Company[]
+  deals        Deal[]
+  tasks        Task[]
+  invitations  Invitation[]
+  dealLeads    DealLead[]
 
   @@map("workspaces")
 }
@@ -169,7 +170,7 @@ model Lead {
   stage      PipelineStage? @relation(fields: [pipelineId, stageId], references: [pipelineId, id], onDelete: Restrict)
   source     Source?        @relation(fields: [workspaceId, sourceId], references: [workspaceId, id], onDelete: Restrict)
   company    Company?       @relation(fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Restrict)
-  activities LeadActivity[]
+  activities ActivityLead[]
   deals      DealLead[]
   tasks      Task[]
 
@@ -234,8 +235,9 @@ model Source {
 
 enum ActivityActorType {
   USER
-  TOOL
   AGENT
+  INTEGRATION
+  SYSTEM
 
   @@map("activity_actor_type")
 }
@@ -246,35 +248,116 @@ enum ActivityType {
   CALL
   MEETING
   LINKEDIN
+
   SEQUENCE_ASSIGNED
   SEQUENCE_UNASSIGNED
   SEQUENCE_STEP_COMPLETED
 
+  CREATED
+  UPDATED
+  DELETED
+  STAGE_CHANGED
+  COMPLETED
+
   @@map("activity_type")
 }
 
-model LeadActivity {
-  id             Int               @id @default(autoincrement())
-  workspaceId    String
-  leadId         Int
-  createdByType  ActivityActorType
-  createdById    String
-  type           ActivityType
-  content        String
+model Activity {
+  id          Int    @id @default(autoincrement())
+  workspaceId String
+
+  createdByType ActivityActorType
+  createdById   String
+
+  type    ActivityType
+  content String
+
   sequenceId     Int?
   sequenceStepId Int?
-  createdAt      DateTime          @default(now())
 
-  lead         Lead          @relation(fields: [workspaceId, leadId], references: [workspaceId, id], onDelete: Cascade)
-  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  sequence     Sequence?     @relation(fields: [workspaceId, sequenceId], references: [workspaceId, id], onDelete: Restrict)
+  // Identifies the event that generated this activity.
+  // Null for manually created activities.
+  sourceEventId String? @unique
+
+  // Additional structured information.
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  sequence Sequence? @relation(fields: [workspaceId, sequenceId], references: [workspaceId, id], onDelete: Restrict)
+
   sequenceStep SequenceStep? @relation(fields: [sequenceId, sequenceStepId], references: [sequenceId, id], onDelete: Restrict)
 
-  @@index([workspaceId, leadId, createdAt])
+  leads     ActivityLead[]
+  companies ActivityCompany[]
+  deals     ActivityDeal[]
+  tasks     ActivityTask[]
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, createdAt])
   @@index([workspaceId, sequenceId])
   @@index([sequenceId, sequenceStepId])
   @@index([createdByType, createdById])
-  @@map("lead_activities")
+  @@map("activities")
+}
+
+model ActivityLead {
+  workspaceId String
+  activityId  Int
+  leadId      Int
+
+  activity Activity @relation(fields: [workspaceId, activityId], references: [workspaceId, id], onDelete: Cascade)
+
+  lead Lead @relation(fields: [workspaceId, leadId], references: [workspaceId, id], onDelete: Cascade)
+
+  @@id([workspaceId, activityId, leadId])
+  @@index([workspaceId, leadId])
+  @@map("activity_leads")
+}
+
+model ActivityCompany {
+  workspaceId String
+  activityId  Int
+  companyId   Int
+
+  activity Activity @relation(fields: [workspaceId, activityId], references: [workspaceId, id], onDelete: Cascade)
+
+  company Company @relation(fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Cascade)
+
+  @@id([workspaceId, activityId, companyId])
+  @@unique([activityId, companyId])
+  @@index([workspaceId, companyId])
+  @@map("activity_companies")
+}
+
+model ActivityDeal {
+  workspaceId String
+  activityId  Int
+  dealId      Int
+
+  activity Activity @relation(fields: [workspaceId, activityId], references: [workspaceId, id], onDelete: Cascade)
+
+  deal Deal @relation(fields: [workspaceId, dealId], references: [workspaceId, id], onDelete: Cascade)
+
+  @@id([workspaceId, activityId, dealId])
+  @@index([workspaceId, dealId])
+  @@map("activity_deals")
+}
+
+model ActivityTask {
+  workspaceId String
+  activityId  Int
+  taskId      Int
+
+  activity Activity @relation(fields: [workspaceId, activityId], references: [workspaceId, id], onDelete: Cascade)
+
+  task Task @relation(fields: [workspaceId, taskId], references: [workspaceId, id], onDelete: Cascade)
+
+  @@id([workspaceId, activityId, taskId])
+  @@index([workspaceId, taskId])
+  @@map("activity_tasks")
 }
 
 enum SequenceStepType {
@@ -297,7 +380,7 @@ model Sequence {
 
   workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   steps      SequenceStep[]
-  activities LeadActivity[]
+  activities Activity[]
 
   @@unique([workspaceId, name])
   @@unique([workspaceId, id])
@@ -314,8 +397,8 @@ model SequenceStep {
   delayDays   Int              @default(0)
   createdAt   DateTime         @default(now())
 
-  sequence   Sequence       @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
-  activities LeadActivity[]
+  sequence   Sequence   @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  activities Activity[]
 
   @@unique([sequenceId, name])
   @@unique([sequenceId, id])
@@ -337,9 +420,10 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  leads     Lead[]
-  deals     Deal[]
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads      Lead[]
+  deals      Deal[]
+  activities ActivityCompany[]
 
   @@unique([workspaceId, name])
   @@unique([workspaceId, id])
@@ -360,12 +444,13 @@ model Deal {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  company   Company?      @relation(fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Restrict)
-  pipeline  Pipeline      @relation(fields: [workspaceId, pipelineId], references: [workspaceId, id], onDelete: Restrict)
-  stage     PipelineStage @relation(fields: [pipelineId, stageId], references: [pipelineId, id], onDelete: Restrict)
-  leads     DealLead[]
-  tasks     Task[]
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company    Company?       @relation(fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Restrict)
+  pipeline   Pipeline       @relation(fields: [workspaceId, pipelineId], references: [workspaceId, id], onDelete: Restrict)
+  stage      PipelineStage  @relation(fields: [pipelineId, stageId], references: [pipelineId, id], onDelete: Restrict)
+  leads      DealLead[]
+  tasks      Task[]
+  activities ActivityDeal[]
 
   @@unique([workspaceId, id])
   @@index([workspaceId, companyId])
@@ -438,9 +523,11 @@ model Task {
   assignedTo Membership @relation("TaskAssigneeMembership", fields: [workspaceId, assignedToId], references: [workspaceId, userId], onDelete: Restrict)
   createdBy  Membership @relation("TaskCreatorMembership", fields: [workspaceId, createdById], references: [workspaceId, userId], onDelete: Restrict)
 
-  lead Lead? @relation(fields: [workspaceId, leadId], references: [workspaceId, id], onDelete: Restrict)
-  deal Deal? @relation(fields: [workspaceId, dealId], references: [workspaceId, id], onDelete: Restrict)
+  lead       Lead?          @relation(fields: [workspaceId, leadId], references: [workspaceId, id], onDelete: Restrict)
+  deal       Deal?          @relation(fields: [workspaceId, dealId], references: [workspaceId, id], onDelete: Restrict)
+  activities ActivityTask[]
 
+  @@unique([workspaceId, id])
   @@index([workspaceId, status])
   @@index([workspaceId, dueDate])
   @@index([workspaceId, assignedToId, status])
@@ -448,4 +535,122 @@ model Task {
   @@index([workspaceId, leadId])
   @@index([workspaceId, dealId])
   @@map("tasks")
+}
+
+enum OutboxEventStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+
+  @@map("outbox_event_status")
+}
+
+model OutboxEvent {
+  id          String @id @default(cuid())
+  eventId     String @unique
+  workspaceId String
+
+  eventName    String
+  eventVersion Int    @default(1)
+
+  entityChangedType String
+  entityChangedId   String
+
+  actorType ActivityActorType
+  actorId   String
+
+  operationId String
+  requestId   String?
+  triggeredBy String?
+  deliveries  EventDelivery[]
+
+  payload Json
+
+  status      OutboxEventStatus @default(PENDING)
+  attempts    Int               @default(0)
+  availableAt DateTime          @default(now())
+  lockedAt    DateTime?
+  publishedAt DateTime?
+  lastError   String?
+
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, entityChangedType, entityChangedId])
+  @@index([workspaceId, operationId])
+  @@map("outbox_events")
+}
+
+enum EventDeliveryStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+
+  @@map("event_delivery_status")
+}
+
+model EventDelivery {
+  id           String @id @default(cuid())
+  eventId      String
+  subscriberId String
+
+  status EventDeliveryStatus @default(PENDING)
+
+  attempts    Int       @default(0)
+  availableAt DateTime  @default(now())
+  lockedAt    DateTime?
+  lockToken   String?
+  completedAt DateTime?
+  lastError   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event            OutboxEvent            @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
+  deliveryAttempts EventDeliveryAttempt[]
+
+  @@unique([eventId, subscriberId])
+  @@index([status, availableAt])
+  @@index([eventId])
+  @@map("event_deliveries")
+}
+
+enum EventDeliveryAttemptStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
+
+  @@map("event_delivery_attempt_status")
+}
+
+enum DeliveryExecutionType {
+  NORMAL_RETRY
+  STALLED_RECOVERY
+}
+
+model EventDeliveryAttempt {
+  id            String                     @id @default(cuid())
+  deliveryId    String
+  attemptNumber Int
+  status        EventDeliveryAttemptStatus
+  bullmqJobId   String?
+  executionType DeliveryExecutionType?
+  startedAt     DateTime                   @default(now())
+  completedAt   DateTime?
+  durationMs    Int?
+  errorMessage  String?
+  errorStack    String?
+
+  delivery EventDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@unique([deliveryId, attemptNumber])
+  @@index([deliveryId, startedAt])
+  @@index([bullmqJobId])
+  @@map("event_delivery_attempts")
 }

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "dev:api": "npm --prefix server run dev",
     "build:api": "npm --prefix server run build",
     "start:api": "npm --prefix server run start"
