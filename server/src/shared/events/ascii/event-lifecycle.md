@@ -56,3 +56,34 @@ PostgreSQL Transaction
 
        GRACEFUL SHUTDOWN controls the
        lifecycle of the entire worker process.
+
+
+       Company service updates a company
+          |
+          v
+Database transaction
+          |
+          +--> Update Company
+          |
+          +--> Create OutboxEvent
+          |
+          v
+Outbox Publisher
+          |
+          v
+Create EventDelivery records
+          |
+          v
+BullMQ Dispatcher
+          |
+          v
+Delivery Processor
+          |
+          v
+Company Updated Subscriber
+          |
+          v
+Create CRM Activity
+          |
+          v
+Mark Delivery SUCCEEDED
