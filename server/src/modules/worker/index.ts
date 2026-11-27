@@ -81,21 +81,29 @@ async function startWorker(): Promise<void> {
       throw failedWorker.reason;
     }
   } finally {
-    console.info('[Worker] Closing event delivery worker...');
+    const cleanupTasks: Array<[string, () => Promise<unknown>]> = [
+      ['event delivery worker', () => eventDeliveryWorker.close()],
+      ['event delivery queue', () => eventDeliveryQueue.close()],
+      ['Redis connection', () => redisConnection.quit()],
+      ['PostgreSQL connection', () => prisma.$disconnect()],
+    ];
 
-    await eventDeliveryWorker.close();
+    let cleanupFailed = false;
 
-    console.info('[Worker] Closing event delivery queue...');
+    for (const [name, cleanup] of cleanupTasks) {
+      console.info(`[Worker] Closing ${name}...`);
 
-    await eventDeliveryQueue.close();
+      try {
+        await cleanup();
+      } catch (error) {
+        cleanupFailed = true;
+        console.error(`[Worker] Failed to close ${name}:`, error);
+      }
+    }
 
-    console.info('[Worker] Closing Redis connection...');
-
-    await redisConnection.quit();
-
-    console.info('[Worker] Closing PostgreSQL connection...');
-
-    await prisma.$disconnect();
+    if (cleanupFailed) {
+      process.exitCode = 1;
+    }
 
     console.info('[Worker] Shutdown complete.');
   }
