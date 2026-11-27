@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client.js';
 
 import type { ExecutionContext } from '@server/shared/context/execution-context.js';
@@ -5,6 +6,9 @@ import type { ExecutionContext } from '@server/shared/context/execution-context.
 import { prisma } from '@server/shared/db/client.js';
 import { AppError } from '@server/shared/errors/app-error.js';
 import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
+import { EVENT_NAMES } from '@server/shared/events/contracts/event-types.js';
+import { createEvent } from '@server/shared/events/factory/event-factory.js';
+import { writeOutboxEvent } from '@server/shared/events/outbox/outbox-writer.js';
 
 export async function deleteTask(context: ExecutionContext, taskId: number) {
   if (context.actor.type !== 'USER') {
@@ -30,6 +34,7 @@ export async function deleteTask(context: ExecutionContext, taskId: number) {
           },
           select: {
             id: true,
+            title: true,
             status: true,
             createdById: true,
           },
@@ -60,6 +65,25 @@ export async function deleteTask(context: ExecutionContext, taskId: number) {
         if (result.count === 0) {
           throw new AppError(ERROR_CODES.CONFLICT, 'The task was modified by another request. Please try again.', 409);
         }
+
+        const event = createEvent({
+          eventName: EVENT_NAMES.TASK_DELETED,
+          workspaceId,
+          entityChanged: {
+            type: 'task',
+            id: String(existingTask.id),
+          },
+          actor: context.actor,
+          operationId: randomUUID(),
+          requestId: context.requestId,
+          ...(context.initiatedByUserId ? { triggeredBy: context.initiatedByUserId } : {}),
+          payload: {
+            id: existingTask.id,
+            title: existingTask.title,
+          },
+        });
+
+        await writeOutboxEvent(tx, event);
 
         return {
           id: taskId,

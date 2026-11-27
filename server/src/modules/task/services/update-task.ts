@@ -1,11 +1,16 @@
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client.js';
 
 import type { ExecutionContext } from '@server/shared/context/execution-context.js';
 import type { UpdateTaskInput } from '../schemas/update-task.schema.js';
+import type { TaskUpdatedPayload } from '@server/shared/events/contracts/event-types.js';
 
 import { prisma } from '@server/shared/db/client.js';
 import { AppError } from '@server/shared/errors/app-error.js';
 import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
+import { EVENT_NAMES } from '@server/shared/events/contracts/event-types.js';
+import { createEvent } from '@server/shared/events/factory/event-factory.js';
+import { writeOutboxEvent } from '@server/shared/events/outbox/outbox-writer.js';
 
 export async function updateTask(context: ExecutionContext, taskId: number, input: UpdateTaskInput) {
   if (context.actor.type !== 'USER') {
@@ -31,9 +36,17 @@ export async function updateTask(context: ExecutionContext, taskId: number, inpu
           },
           select: {
             id: true,
+            title: true,
+            description: true,
             status: true,
+            priority: true,
+            dueDate: true,
+            completedAt: true,
             assignedToId: true,
             createdById: true,
+            leadId: true,
+            dealId: true,
+            visibility: true,
           },
         });
 
@@ -162,7 +175,7 @@ export async function updateTask(context: ExecutionContext, taskId: number, inpu
           throw new AppError(ERROR_CODES.CONFLICT, 'The task was modified by another request. Please try again.', 409);
         }
 
-        return await tx.task.findFirst({
+        const task = await tx.task.findFirst({
           where: {
             id: existingTask.id,
             workspaceId,
@@ -184,6 +197,109 @@ export async function updateTask(context: ExecutionContext, taskId: number, inpu
             updatedAt: true,
           },
         });
+
+        if (!task) {
+          return task;
+        }
+
+        // Detect actual changes.
+        const changes: TaskUpdatedPayload['changes'] = {};
+
+        if (input.title !== undefined && input.title !== existingTask.title) {
+          changes.title = input.title;
+        }
+
+        if (input.description !== undefined && input.description !== existingTask.description) {
+          changes.description = input.description;
+        }
+
+        if (input.status !== undefined && input.status !== existingTask.status) {
+          changes.status = input.status;
+        }
+
+        if (input.priority !== undefined && input.priority !== existingTask.priority) {
+          changes.priority = input.priority;
+        }
+
+        if (input.dueDate !== undefined) {
+          const nextDueDate = input.dueDate === null ? null : new Date(input.dueDate);
+          const dueDateChanged =
+            existingTask.dueDate === null
+              ? nextDueDate !== null
+              : nextDueDate === null || nextDueDate.getTime() !== existingTask.dueDate.getTime();
+
+          if (dueDateChanged) {
+            changes.dueDate = nextDueDate?.toISOString() ?? null;
+          }
+        }
+
+        if (input.assignedToId !== undefined && input.assignedToId !== existingTask.assignedToId) {
+          changes.assignedToId = input.assignedToId;
+        }
+
+        if (input.leadId !== undefined && input.leadId !== existingTask.leadId) {
+          changes.leadId = input.leadId;
+        }
+
+        if (input.dealId !== undefined && input.dealId !== existingTask.dealId) {
+          changes.dealId = input.dealId;
+        }
+
+        if (input.visibility !== undefined && input.visibility !== existingTask.visibility) {
+          changes.visibility = input.visibility;
+        }
+
+        if (task.completedAt?.getTime() !== existingTask.completedAt?.getTime()) {
+          changes.completedAt = task.completedAt?.toISOString() ?? null;
+        }
+
+        const operationId = randomUUID();
+
+        if (Object.keys(changes).length > 0) {
+          const event = createEvent({
+            eventName: EVENT_NAMES.TASK_UPDATED,
+            workspaceId,
+            entityChanged: {
+              type: 'task',
+              id: String(task.id),
+            },
+            actor: context.actor,
+            operationId,
+            requestId: context.requestId,
+            ...(context.initiatedByUserId ? { triggeredBy: context.initiatedByUserId } : {}),
+            payload: {
+              id: task.id,
+              changes,
+            },
+          });
+
+          await writeOutboxEvent(tx, event);
+        }
+
+        // Emit TASK_COMPLETED only on the transition to DONE.
+        if (task.status === 'DONE' && task.completedAt) {
+          const event = createEvent({
+            eventName: EVENT_NAMES.TASK_COMPLETED,
+            workspaceId,
+            entityChanged: {
+              type: 'task',
+              id: String(task.id),
+            },
+            actor: context.actor,
+            operationId,
+            requestId: context.requestId,
+            ...(context.initiatedByUserId ? { triggeredBy: context.initiatedByUserId } : {}),
+            payload: {
+              id: task.id,
+              title: task.title,
+              completedAt: task.completedAt.toISOString(),
+            },
+          });
+
+          await writeOutboxEvent(tx, event);
+        }
+
+        return task;
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

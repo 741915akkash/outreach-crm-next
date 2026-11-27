@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client.js';
 
 import type { ExecutionContext } from '@server/shared/context/execution-context.js';
@@ -6,6 +7,9 @@ import type { CreateDealInput } from '../schemas/create-deal.schema.js';
 import { prisma } from '@server/shared/db/client.js';
 import { AppError } from '@server/shared/errors/app-error.js';
 import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
+import { EVENT_NAMES } from '@server/shared/events/contracts/event-types.js';
+import { createEvent } from '@server/shared/events/factory/event-factory.js';
+import { writeOutboxEvent } from '@server/shared/events/outbox/outbox-writer.js';
 
 export async function createDeal(context: ExecutionContext, input: CreateDealInput) {
   const workspaceId = context.workspace.workspaceId;
@@ -137,6 +141,34 @@ export async function createDeal(context: ExecutionContext, input: CreateDealInp
           })),
         });
       }
+
+      const event = createEvent({
+        eventName: EVENT_NAMES.DEAL_CREATED,
+        workspaceId,
+        entityChanged: {
+          type: 'deal',
+          id: String(deal.id),
+        },
+        actor: context.actor,
+        operationId: randomUUID(),
+        requestId: context.requestId,
+        ...(context.initiatedByUserId ? { triggeredBy: context.initiatedByUserId } : {}),
+        payload: {
+          id: deal.id,
+          name: deal.name,
+          companyId: deal.company?.id ?? null,
+          pipelineId: deal.pipeline.id,
+          stageId: deal.stage.id,
+          value: deal.value?.toString() ?? null,
+          currency: deal.currency,
+          expectedCloseDate: deal.expectedCloseDate?.toISOString() ?? null,
+          description: deal.description,
+          createdAt: deal.createdAt.toISOString(),
+          updatedAt: deal.updatedAt.toISOString(),
+        },
+      });
+
+      await writeOutboxEvent(tx, event);
 
       return {
         ...deal,

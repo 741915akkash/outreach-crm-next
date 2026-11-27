@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client.js';
 
 import type { ExecutionContext } from '@server/shared/context/execution-context.js';
@@ -6,6 +7,9 @@ import type { CreateLeadInput } from '../schemas/create-lead.schema.js';
 import { prisma } from '@server/shared/db/client.js';
 import { AppError } from '@server/shared/errors/app-error.js';
 import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
+import { EVENT_NAMES } from '@server/shared/events/contracts/event-types.js';
+import { createEvent } from '@server/shared/events/factory/event-factory.js';
+import { writeOutboxEvent } from '@server/shared/events/outbox/outbox-writer.js';
 
 export async function createLead(context: ExecutionContext, input: CreateLeadInput) {
   const workspaceId = context.workspace.workspaceId;
@@ -54,7 +58,7 @@ export async function createLead(context: ExecutionContext, input: CreateLeadInp
         }
       }
 
-      return await tx.lead.create({
+      const lead = await tx.lead.create({
         data: {
           workspaceId,
           name: input.name,
@@ -100,6 +104,34 @@ export async function createLead(context: ExecutionContext, input: CreateLeadInp
           },
         },
       });
+
+      const event = createEvent({
+        eventName: EVENT_NAMES.LEAD_CREATED,
+        workspaceId,
+        entityChanged: {
+          type: 'lead',
+          id: String(lead.id),
+        },
+        actor: context.actor,
+        operationId: randomUUID(),
+        requestId: context.requestId,
+        payload: {
+          id: lead.id,
+          name: lead.name,
+          companyId: lead.company?.id ?? null,
+          email: lead.email,
+          phone: lead.phone,
+          pipelineId: lead.pipeline?.id ?? null,
+          stageId: lead.stage?.id ?? null,
+          sourceId: lead.source?.id ?? null,
+          createdAt: lead.createdAt.toISOString(),
+          updatedAt: lead.updatedAt.toISOString(),
+        },
+      });
+
+      await writeOutboxEvent(tx, event);
+
+      return lead;
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -115,4 +147,3 @@ export async function createLead(context: ExecutionContext, input: CreateLeadInp
     throw error;
   }
 }
-

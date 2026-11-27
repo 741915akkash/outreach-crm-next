@@ -1,11 +1,16 @@
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client.js';
 
 import type { ExecutionContext } from '@server/shared/context/execution-context.js';
 import type { UpdateDealInput } from '../schemas/update-deal.schema.js';
+import type { DealUpdatedPayload } from '@server/shared/events/contracts/event-types.js';
 
 import { prisma } from '@server/shared/db/client.js';
 import { AppError } from '@server/shared/errors/app-error.js';
 import { ERROR_CODES } from '@server/shared/errors/error-codes.js';
+import { EVENT_NAMES } from '@server/shared/events/contracts/event-types.js';
+import { createEvent } from '@server/shared/events/factory/event-factory.js';
+import { writeOutboxEvent } from '@server/shared/events/outbox/outbox-writer.js';
 
 export async function updateDeal(context: ExecutionContext, dealId: number, input: UpdateDealInput) {
   const workspaceId = context.workspace.workspaceId;
@@ -19,8 +24,14 @@ export async function updateDeal(context: ExecutionContext, dealId: number, inpu
         },
         select: {
           id: true,
+          name: true,
+          companyId: true,
           pipelineId: true,
           stageId: true,
+          value: true,
+          currency: true,
+          expectedCloseDate: true,
+          description: true,
           leads: {
             select: {
               leadId: true,
@@ -212,7 +223,7 @@ export async function updateDeal(context: ExecutionContext, dealId: number, inpu
       }
 
       // Return the updated Deal with its relationships.
-      return tx.deal.findFirstOrThrow({
+      const deal = await tx.deal.findFirstOrThrow({
         where: {
           id: existingDeal.id,
           workspaceId,
@@ -260,6 +271,104 @@ export async function updateDeal(context: ExecutionContext, dealId: number, inpu
           },
         },
       });
+
+      // Detect actual changes.
+      const changes: DealUpdatedPayload['changes'] = {};
+
+      if (input.name !== undefined && input.name !== existingDeal.name) {
+        changes.name = input.name;
+      }
+
+      if (input.companyId !== undefined && input.companyId !== existingDeal.companyId) {
+        changes.companyId = input.companyId;
+      }
+
+      if (pipelineId !== existingDeal.pipelineId) {
+        changes.pipelineId = pipelineId;
+      }
+
+      if (stageId !== existingDeal.stageId) {
+        changes.stageId = stageId;
+      }
+
+      if (input.value !== undefined) {
+        const nextValue = input.value === null ? null : new Prisma.Decimal(input.value);
+        const valueChanged =
+          existingDeal.value === null
+            ? nextValue !== null
+            : nextValue === null || !existingDeal.value.equals(nextValue);
+
+        if (valueChanged) {
+          changes.value = nextValue?.toString() ?? null;
+        }
+      }
+
+      if (input.currency !== undefined && input.currency !== existingDeal.currency) {
+        changes.currency = input.currency;
+      }
+
+      if (input.expectedCloseDate !== undefined) {
+        const nextDate = input.expectedCloseDate === null ? null : new Date(input.expectedCloseDate);
+        const dateChanged =
+          existingDeal.expectedCloseDate === null
+            ? nextDate !== null
+            : nextDate === null || nextDate.getTime() !== existingDeal.expectedCloseDate.getTime();
+
+        if (dateChanged) {
+          changes.expectedCloseDate = nextDate?.toISOString() ?? null;
+        }
+      }
+
+      if (input.description !== undefined && input.description !== existingDeal.description) {
+        changes.description = input.description;
+      }
+
+      const operationId = randomUUID();
+
+      if (Object.keys(changes).length > 0) {
+        const event = createEvent({
+          eventName: EVENT_NAMES.DEAL_UPDATED,
+          workspaceId,
+          entityChanged: {
+            type: 'deal',
+            id: String(deal.id),
+          },
+          actor: context.actor,
+          operationId,
+          requestId: context.requestId,
+          ...(context.initiatedByUserId ? { triggeredBy: context.initiatedByUserId } : {}),
+          payload: {
+            id: deal.id,
+            changes,
+          },
+        });
+
+        await writeOutboxEvent(tx, event);
+      }
+
+      if (stageId !== existingDeal.stageId) {
+        const event = createEvent({
+          eventName: EVENT_NAMES.DEAL_STAGE_CHANGED,
+          workspaceId,
+          entityChanged: {
+            type: 'deal',
+            id: String(deal.id),
+          },
+          actor: context.actor,
+          operationId,
+          requestId: context.requestId,
+          ...(context.initiatedByUserId ? { triggeredBy: context.initiatedByUserId } : {}),
+          payload: {
+            id: deal.id,
+            previousStageId: existingDeal.stageId,
+            newStageId: stageId,
+          },
+        });
+
+        await writeOutboxEvent(tx, event);
+      }
+
+      return deal;
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
